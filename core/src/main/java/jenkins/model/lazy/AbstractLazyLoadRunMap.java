@@ -540,7 +540,17 @@ public abstract class AbstractLazyLoadRunMap<R> extends AbstractMap<Integer,R> i
             if (v!=null)        return v;       // already in memory
             // otherwise fall through to load
         }
-        return load(id,null);
+        synchronized(this) {
+            snapshot = index;
+            if (snapshot.byId.containsKey(id)) { // JENKINS-22767: recheck inside lock
+                BuildReference<R> ref = snapshot.byId.get(id);
+                if (ref==null)      return null;    // known failure
+                R v = unwrap(ref);
+                if (v!=null)        return v;       // already in memory
+                // otherwise fall through to load
+            }
+            return load(id,null);
+        }
     }
 
     public R getByNumber(int n) {
@@ -668,7 +678,7 @@ public abstract class AbstractLazyLoadRunMap<R> extends AbstractMap<Integer,R> i
     }
 
 
-    protected R load(String id, Index editInPlace) {
+    private R load(String id, Index editInPlace) {
         assert dir != null;
         R v = load(new File(dir, id), editInPlace);
         if (v==null && editInPlace!=null) {
