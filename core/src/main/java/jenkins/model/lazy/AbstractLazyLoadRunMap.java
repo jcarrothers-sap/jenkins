@@ -540,9 +540,14 @@ public abstract class AbstractLazyLoadRunMap<R> extends AbstractMap<Integer,R> i
             if (v!=null)        return v;       // already in memory
             // otherwise fall through to load
         }
+        long enterTime = System.nanoTime();
         synchronized(this) {
+            long waitTime = System.nanoTime() - enterTime;
+            if ( waitTime > 1000L ) LOGGER.logp(Level.FINER, "AbstractLazyLoadRunMap", "getById",
+                    "Load Wait Time: {0} [{1}]", new Object[]{waitTime/1000000D, dir});
             snapshot = index;
             if (snapshot.byId.containsKey(id)) { // JENKINS-22767: recheck inside lock
+                LOGGER.finest("Probable occurance of JENKINS-22767 prevented.");
                 BuildReference<R> ref = snapshot.byId.get(id);
                 if (ref==null)      return null;    // known failure
                 R v = unwrap(ref);
@@ -658,7 +663,11 @@ public abstract class AbstractLazyLoadRunMap<R> extends AbstractMap<Integer,R> i
         R r = null;
         File shortcut = new File(dir,String.valueOf(n));
         if (shortcut.isDirectory()) {
+            long enterTime = System.nanoTime();
             synchronized (this) {
+                long waitTime = System.nanoTime() - enterTime;
+                if ( waitTime > 1000L ) LOGGER.logp(Level.FINER, "AbstractLazyLoadRunMap", "load (byNum)",
+                        "Load Wait Time: {0} [{1}]", new Object[]{waitTime/1000000D, dir});
                 r = load(shortcut,editInPlace);
 
                 // make sure what we actually loaded is #n,
@@ -697,7 +706,11 @@ public abstract class AbstractLazyLoadRunMap<R> extends AbstractMap<Integer,R> i
      */
     protected synchronized R load(File dataDir, Index editInPlace) {
         try {
+            long loadStart = System.nanoTime();
             R r = retrieve(dataDir);
+            long loadDone = System.nanoTime() - loadStart;
+            if ( loadDone > 1000000 ) LOGGER.logp(Level.FINEST, "AbstractLazyLoadRunMap", "load",
+                    "Disk Load Time: {0} [{1}]", new Object[]{loadDone/1000000D, dataDir});
             if (r==null)    return null;
 
             Index copy = editInPlace!=null ? editInPlace : new Index(index);
